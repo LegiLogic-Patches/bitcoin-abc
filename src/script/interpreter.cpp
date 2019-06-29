@@ -16,6 +16,16 @@
 #include <script/sigencoding.h>
 #include <uint256.h>
 
+#include <iostream>
+#include <sstream>
+#include <utilstrencodings.h>
+template <typename T> std::string HexSer(const T &obj) {
+  std::stringstream ss;
+  ::Serialize(ss, obj);
+  return HexStr(ss.str());
+}
+
+
 bool CastToBool(const valtype &vch) {
     for (size_t i = 0; i < vch.size(); i++) {
         if (vch[i] != 0) {
@@ -1342,27 +1352,39 @@ public:
 };
 
 uint256 GetPrevoutHash(const CTransaction &txTo) {
+    std::cerr << "    GetPrevoutHash\n";
     CHashWriter ss(SER_GETHASH, 0);
     for (size_t n = 0; n < txTo.vin.size(); n++) {
+        std::cerr << "      " << HexSer(txTo.vin[n].prevout) << " " << txTo.vin[n].prevout.ToString() << "\n";
         ss << txTo.vin[n].prevout;
     }
-    return ss.GetHash();
+    uint256 r = ss.GetHash();
+    std::cerr << "    GetPrevoutHash => " << HexSer(r) << "\n";
+    return r;
 }
 
 uint256 GetSequenceHash(const CTransaction &txTo) {
+    std::cerr << "    GetSequenceHash\n";
     CHashWriter ss(SER_GETHASH, 0);
     for (size_t n = 0; n < txTo.vin.size(); n++) {
+        std::cerr << "      " << HexSer(txTo.vin[n].nSequence) << " " << txTo.vin[n].nSequence << "\n";
         ss << txTo.vin[n].nSequence;
     }
-    return ss.GetHash();
+    uint256 r = ss.GetHash();
+    std::cerr << "    GetSequenceHash => " << HexSer(r) << "\n";
+    return r;
 }
 
 uint256 GetOutputsHash(const CTransaction &txTo) {
+    std::cerr << "    GetOutputsHash\n";
     CHashWriter ss(SER_GETHASH, 0);
     for (size_t n = 0; n < txTo.vout.size(); n++) {
+        std::cerr << "      " << HexSer(txTo.vout[n]) << " " << txTo.vout[n].ToString() << "\n";
         ss << txTo.vout[n];
     }
-    return ss.GetHash();
+    uint256 r = ss.GetHash();
+    std::cerr << "    GetOutputsHash => " << HexSer(r) << "\n";
+    return r;
 }
 
 } // namespace
@@ -1378,6 +1400,8 @@ uint256 SignatureHash(const CScript &scriptCode, const CTransaction &txTo,
                       unsigned int nIn, SigHashType sigHashType,
                       const Amount amount,
                       const PrecomputedTransactionData *cache, uint32_t flags) {
+  std::cerr << "\nSignatureHash: " << txTo.ToString() << "\n";
+
     if (flags & SCRIPT_ENABLE_REPLAY_PROTECTION) {
         // Legacy chain's value for fork id must be of the form 0xffxxxx.
         // By xoring with 0xdead, we ensure that the value will be different
@@ -1409,29 +1433,42 @@ uint256 SignatureHash(const CScript &scriptCode, const CTransaction &txTo,
             CHashWriter ss(SER_GETHASH, 0);
             ss << txTo.vout[nIn];
             hashOutputs = ss.GetHash();
+            std::cerr << "    hashOutputs: " << txTo.vout[nIn].ToString() << " " << HexSer(txTo.vout[nIn]) << " => " << HexSer(hashOutputs) << "\n";
         }
 
         CHashWriter ss(SER_GETHASH, 0);
         // Version
+        std::cerr << "  txTo.nVersion: " << HexSer(txTo.nVersion) << "\n";
         ss << txTo.nVersion;
         // Input prevouts/nSequence (none/all, depending on flags)
+        std::cerr << "  hashPrevouts: " << HexSer(hashPrevouts) << "\n";
         ss << hashPrevouts;
+        std::cerr << "  hashSequence: " << HexSer(hashSequence) << "\n";
         ss << hashSequence;
         // The input being signed (replacing the scriptSig with scriptCode +
         // amount). The prevout may already be contained in hashPrevout, and the
         // nSequence may already be contain in hashSequence.
+        std::cerr << "  txTo.vin[nIn].prevout: " << HexSer(txTo.vin[nIn].prevout) << "\n";
         ss << txTo.vin[nIn].prevout;
+        std::cerr << "  scriptCode: " << HexSer(scriptCode) << "\n";
         ss << scriptCode;
+        std::cerr << "  amount: " << HexSer(amount) << "\n";
         ss << amount;
+        std::cerr << "  txTo.vin[nIn].nSequence: " << HexSer(txTo.vin[nIn].nSequence) << "\n";
         ss << txTo.vin[nIn].nSequence;
         // Outputs (none/one/all, depending on flags)
+        std::cerr << "  hashOutputs: " << HexSer(hashOutputs) << "\n";
         ss << hashOutputs;
         // Locktime
+        std::cerr << "  txTo.nLockTime: " << HexSer(txTo.nLockTime) << "\n";
         ss << txTo.nLockTime;
         // Sighash type
+        std::cerr << "  sigHashType: " << HexSer(sigHashType) << "\n";
         ss << sigHashType;
+        uint256 r = ss.GetHash();
+        std::cerr << "SignatureHash => " << HexSer(r) << "\n";
 
-        return ss.GetHash();
+        return r;
     }
 
     static const uint256 one(uint256S(
@@ -1455,7 +1492,10 @@ uint256 SignatureHash(const CScript &scriptCode, const CTransaction &txTo,
     // Serialize and hash
     CHashWriter ss(SER_GETHASH, 0);
     ss << txTmp << sigHashType;
-    return ss.GetHash();
+    uint256 r = ss.GetHash();
+    std::cerr << "SignatureHash => " << HexStr(r) << "\n" ;
+    std::cerr.flush();
+    return r;
 }
 
 bool BaseSignatureChecker::VerifySignature(const std::vector<uint8_t> &vchSig,
